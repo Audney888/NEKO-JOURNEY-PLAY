@@ -1,0 +1,86 @@
+name: Browser QA — Four Regions
+on:
+  push:
+    branches: [main]
+    paths:
+      - .github/workflows/browser-qa.yml
+      - bundle/**
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  browser-qa:
+    name: Desktop + mobile emulation / real Canvas rendering
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Prepare static game and browser driver
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p /tmp/neko-qa
+          unzip -q bundle/NEKO-JOURNEY-FOUR-REGIONS-GAME.zip -d /tmp/neko-qa
+          cd /tmp/neko-qa/web-native
+          npm run build
+          npm install --no-save --ignore-scripts playwright-core@1.56.1
+          mkdir -p "$GITHUB_WORKSPACE/screenshots"
+          python3 -m http.server 4173 --bind 127.0.0.1 --directory dist > /tmp/neko-server.log 2>&1 &
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:4173/ >/dev/null; then exit 0; fi
+            sleep 1
+          done
+          cat /tmp/neko-server.log
+          exit 1
+      - name: Open gameplay in desktop Chrome and emulated iPhone landscape
+        working-directory: /tmp/neko-qa/web-native
+        shell: bash
+        env:
+          SCREENSHOT_DIR: ${{ github.workspace }}/screenshots
+        run: |
+          node <<'NODE'
+          const {chromium}=require('playwright-core');
+          const fs=require('fs');
+          const assert=require('assert/strict');
+          (async()=>{
+            const browser=await chromium.launch({headless:true,executablePath:process.env.CHROME_BIN||'/usr/bin/google-chrome',args:['--no-sandbox']});
+            for(const mode of ['desktop','mobile']){
+              const mobile=mode==='mobile';
+              const context=await browser.newContext({viewport:mobile?{width:844,height:390}:{width:1280,height:720},isMobile:mobile,hasTouch:mobile,deviceScaleFactor:1});
+              const page=await context.newPage();
+              const errors=[];page.on('pageerror',e=>errors.push(e.message));
+              const response=await page.goto('http://127.0.0.1:4173/?debug',{waitUntil:'load'});
+              assert.equal(response.status(),200);
+              await page.getByRole('button',{name:'開始旅程'}).click();
+              await page.locator('[data-character="bobo"]').click();
+              await page.locator('[data-menu-action="world_1_1"]').click();
+              await page.waitForTimeout(700);
+              assert.equal(await page.evaluate(()=>window.__NEKO_DEBUG__?.scene),'game');
+              const imgs=await page.evaluate(()=>Promise.all(Array.from(document.images).map(x=>x.complete)));
+              if(mobile){
+                assert.equal(await page.locator('#touch-controls').isVisible(),true);
+                assert.equal(await page.locator('#rotate').isVisible(),false);
+              }else{
+                const before=await page.evaluate(()=>window.__NEKO_DEBUG__.x);
+                await page.keyboard.down('ArrowRight');await page.waitForTimeout(350);await page.keyboard.up('ArrowRight');
+                const after=await page.evaluate(()=>window.__NEKO_DEBUG__.x);
+                assert.ok(after>before+5,'Player must move on keyboard');
+              }
+              await page.screenshot({path:process.env.SCREENSHOT_DIR+'/'+mode+'.png'});
+              assert.deepEqual(errors,[],'No uncaught gameplay JS errors');
+              console.log(mode+' gameplay render: PASS');
+              await context.close();
+            }
+            await browser.close();
+          })().catch(e=>{console.error(e);process.exit(1)});
+          NODE
+      - name: Attach actual gameplay screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: neko-four-regions-browser-captures
+          path: screenshots/
+          if-no-files-found: warn
