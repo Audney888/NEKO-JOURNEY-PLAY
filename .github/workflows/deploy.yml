@@ -34,3 +34,30 @@ jobs:
           path: .
       - id: deployment
         uses: actions/deploy-pages@v4
+
+      - name: Verify published mobile website is reachable
+        env:
+          SITE_URL: ${{ steps.deployment.outputs.page_url }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          test -n "$SITE_URL"
+          SITE_URL="${SITE_URL%/}/"
+          for i in $(seq 1 30); do
+            if curl -fsSL --connect-timeout 10 --max-time 20 "$SITE_URL" -o /tmp/neko-index.html &&
+               grep -q 'NEKO JOURNEY' /tmp/neko-index.html &&
+               curl -fsSL --connect-timeout 10 --max-time 20 "${SITE_URL}src/main.js" -o /tmp/neko-main.js &&
+               grep -q 'NekoGame' /tmp/neko-main.js; then
+              echo "VERIFIED LIVE PLAYABLE SITE: $SITE_URL"
+              echo "::notice title=NEKO JOURNEY mobile site::$SITE_URL"
+              {
+                echo "### NEKO JOURNEY iPhone Safari / Android Chrome"
+                echo "$SITE_URL"
+                echo "GitHub Pages HTTPS index + JavaScript returned successfully."
+              } >> "$GITHUB_STEP_SUMMARY"
+              exit 0
+            fi
+            sleep 4
+          done
+          echo "::error::Pages completed deployment but mobile index/JS could not be fetched."
+          exit 1
