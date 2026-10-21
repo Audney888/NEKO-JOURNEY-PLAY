@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, maximum-scale=1, user-scalable=no">
+  <meta name="theme-color" content="#172c39">
+  <meta name="description" content="NEKO JOURNEY · 喵歷險記 — 2D 橫向平台冒險 Web Native 開發測試版">
+  <title>NEKO JOURNEY · 喵歷險記 — Web Native Alpha</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div id="shell">
+    <div id="stage" aria-label="NEKO JOURNEY 遊戲畫面">
+      <canvas id="game" width="480" height="270" aria-label="2D 橫向平台關卡"></canvas>
+      <div id="hud" class="hud" hidden>
+        <div class="hud-block"><strong id="hp-display">♥ ♥ ♥</strong><span id="coin-display">◉ 0</span></div>
+        <div id="quest-display" class="quest"></div>
+        <button type="button" id="pause-fab" class="fab" aria-label="暫停">Ⅱ</button>
+        <div id="hint-display" class="hint" aria-live="polite"></div>
+      </div>
+      <div id="touch-controls" class="touch-controls" hidden>
+        <div class="pad left-pad">
+          <button type="button" data-action="left" aria-label="往左">◀</button>
+          <button type="button" data-action="down" aria-label="蹲下">▼</button>
+          <button type="button" data-action="right" aria-label="往右">▶</button>
+        </div>
+        <div class="pad right-pad">
+          <button type="button" data-action="item" class="secondary">ITEM</button>
+          <button type="button" data-action="talk" class="secondary">TALK</button>
+          <button type="button" data-action="attack">ATK</button>
+          <button type="button" data-action="skill">SKILL</button>
+          <button type="button" data-action="jump" class="jump">JUMP</button>
+        </div>
+      </div>
+      <div id="menu" class="menu">
+        <div class="window" id="menu-inner" aria-live="polite"></div>
+      </div>
+      <div id="rotate" class="rotate" hidden><div class="window"><div class="rotate-icon">↻</div><h2>請將手機轉為橫向遊玩</h2><p>NEKO JOURNEY 是橫向平台冒險遊戲。</p></div></div>
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
+    </div>
+    <div class="below">NEKO JOURNEY · WEB NATIVE ALPHA · 使用 placeholder 美術 · 電腦：A / D、Space、J、K、E、Q</div>
+  </div>
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
