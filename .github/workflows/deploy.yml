@@ -1,15 +1,19 @@
 name: Deploy NEKO JOURNEY PLAY
+
 on:
   push:
     branches: [main]
   workflow_dispatch:
+
 permissions:
   contents: read
   pages: write
   id-token: write
+
 concurrency:
   group: pages
   cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -18,24 +22,29 @@ jobs:
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
       - uses: actions/checkout@v4
-      - name: Validate game files
+      - name: Unpack complete Web game and verify tests
+        shell: bash
         run: |
-          test -f index.html
-          test -f style.css
-          for f in art data game input main store; do test -f "src/$f.js"; done
-          node --check src/game.js
-          node --check src/art.js
-          node --check src/main.js
+          set -euo pipefail
+          mkdir -p /tmp/neko-game
+          unzip -q bundle/NEKO-JOURNEY-FOUR-REGIONS-GAME.zip -d /tmp/neko-game
+          cd /tmp/neko-game/web-native
+          npm run check
+          npm test
+          npm run build
+          mkdir -p "$GITHUB_WORKSPACE/_site"
+          cp -R dist/. "$GITHUB_WORKSPACE/_site/"
+          test -f "$GITHUB_WORKSPACE/_site/assets/cats.png"
+          for i in 0 1 2 3; do test -f "$GITHUB_WORKSPACE/_site/assets/bg_${i}.png"; done
+          test -f "$GITHUB_WORKSPACE/_site/src/visuals.js"
+          echo "Four chapters, visual assets and browser scripts packaged."
       - uses: actions/configure-pages@v5
-        with:
-          enablement: true
       - uses: actions/upload-pages-artifact@v4
         with:
-          path: .
+          path: _site
       - id: deployment
         uses: actions/deploy-pages@v4
-
-      - name: Verify published mobile website is reachable
+      - name: Validate HTTPS game entry and art assets
         env:
           SITE_URL: ${{ steps.deployment.outputs.page_url }}
         shell: bash
@@ -43,21 +52,19 @@ jobs:
           set -euo pipefail
           test -n "$SITE_URL"
           SITE_URL="${SITE_URL%/}/"
-          for i in $(seq 1 30); do
-            if curl -fsSL --connect-timeout 10 --max-time 20 "$SITE_URL" -o /tmp/neko-index.html &&
+          for i in $(seq 1 24); do
+            if curl -fsSL --connect-timeout 8 --max-time 18 "$SITE_URL" -o /tmp/neko-index.html &&
                grep -q 'NEKO JOURNEY' /tmp/neko-index.html &&
-               curl -fsSL --connect-timeout 10 --max-time 20 "${SITE_URL}src/main.js" -o /tmp/neko-main.js &&
-               grep -q 'NekoGame' /tmp/neko-main.js; then
-              echo "VERIFIED LIVE PLAYABLE SITE: $SITE_URL"
-              echo "::notice title=NEKO JOURNEY mobile site::$SITE_URL"
+               curl -fsSL "${SITE_URL}src/visuals.js" -o /tmp/neko-visuals.js &&
+               curl -fsSL "${SITE_URL}assets/bg_0.png" -o /tmp/neko-bg.png; then
+              echo "NEKO JOURNEY live release: $SITE_URL"
               {
-                echo "### NEKO JOURNEY iPhone Safari / Android Chrome"
+                echo "### NEKO JOURNEY — Four Regions"
                 echo "$SITE_URL"
-                echo "GitHub Pages HTTPS index + JavaScript returned successfully."
+                echo "Published HTML, JavaScript and PNG game art verified over HTTPS."
               } >> "$GITHUB_STEP_SUMMARY"
               exit 0
             fi
-            sleep 4
+            sleep 5
           done
-          echo "::error::Pages completed deployment but mobile index/JS could not be fetched."
           exit 1
